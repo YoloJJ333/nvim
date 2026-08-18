@@ -42,6 +42,13 @@ vim.opt.expandtab = true
 vim.opt.autoindent = true
 vim.cmd("filetype plugin indent on")
 
+-- visible whitespace
+vim.opt.list = true
+vim.opt.listchars:append("space:⋅")
+vim.opt.listchars:append("eol:↴")
+vim.opt.listchars:append("tab:» ")
+vim.opt.listchars:append("trail:·")
+
 -- search
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
@@ -73,5 +80,13 @@ vim.api.nvim_create_autocmd({ "BufWritePre" }, {
     end
     local file = (vim.uv or vim.loop).fs_realpath(event.match) or event.match
     vim.fn.mkdir(vim.fn.fnamemodify(file, ":p:h"), "p")
+  end,
+})
+
+-- overwrite saving for hyprland configs instead of rename
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+  pattern = "*/.config/hypr/**/*.lua",
+  callback = function()
+    vim.opt.backupcopy = "yes"
   end,
 })
