@@ -53,6 +53,11 @@ vim.opt.listchars:append("trail:·")
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
+-- cursor pair bounce
+vim.opt.matchpairs:append("<:>")
+vim.opt.showmatch = true
+vim.opt.matchtime = 4
+
 -- keybinds (all keybindings live in lua/keybinds.lua)
 require("keybinds").setup()
 

@@ -25,16 +25,6 @@ function M.setup()
   -- :W behaves like :w
   vim.cmd([[cabbrev W w]])
 
-  -- --- Auto-bounce over closing pairs (insert mode) -----------------------
-  -- when a closer is typed, flash to its matching opener for MATCHTIME
-  local MATCHTIME = "420m"
-  vim.opt.matchpairs:append("<:>")
-  for _, closer in ipairs({ ">", "}", "]", ")" }) do
-    map("i", closer,
-      closer .. "<Left><C-o>%<C-o>:sleep " .. MATCHTIME .. "<CR><C-o>%<C-o>a",
-      noremap_silent)
-  end
-
   -- --- Terminal -----------------------------------------------------------
   map("n", "<F4>", ":sp term://")
   map("t", "<C-q>", "<C-\\><C-n>")
