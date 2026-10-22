@@ -46,6 +46,19 @@ return {
       vim.lsp.config("clangd", {
         -- Fixes a common multiple offset encoding warning from clangd in Neovim
         cmd = { "clangd", "--offset-encoding=utf-16" },
+        filetypes = { "c", "cpp", "hpp", "objc", "objcpp", "cuda", "tpp" },
+        root_markers = { '.clangd', 'compile_commands.json', '.git', 'CMakeLists.txt' },
+        before_init = function(params, config)
+          local root = config.root_dir or vim.fn.getcwd()
+          params.initializationOptions = vim.tbl_deep_extend("force",
+          params.initializationOptions or {}, {
+          fallbackFlags = {
+            "-xc++",
+            "-I" .. vim.fs.joinpath(root, "include"),
+            "-std=c++20",
+          },
+        })
+        end,
       })
 
       -- Setup Mason-LSPConfig (The Bridge). installed servers are enabled

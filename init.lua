@@ -65,7 +65,7 @@ require("lazy").setup({
   spec = {
     { import = "plugins" },
   },
-  checker = { enabled = true },
+  -- checker = { enabled = true },
   -- Disable LuaRocks support to fix the "hererocks" installation error
   rocks = {
     enabled = false,
