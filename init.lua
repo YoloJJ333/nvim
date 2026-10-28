@@ -58,6 +58,13 @@ vim.opt.matchpairs:append("<:>")
 vim.opt.showmatch = true
 vim.opt.matchtime = 4
 
+-- filetype mapping
+vim.filetype.add({
+  extension = {
+    tpp = "cpp",
+  },
+})
+
 -- keybinds (all keybindings live in lua/keybinds.lua)
 require("keybinds").setup()
 

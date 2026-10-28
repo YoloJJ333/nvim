@@ -3,8 +3,6 @@ return {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
     config = function()
-      vim.treesitter.language.register("cpp", "tpp")
-
       require("nvim-treesitter.configs").setup({
         -- Removed javascript and typescript
         ensure_installed = { "lua", "vim", "vimdoc", "python", "cpp" },
