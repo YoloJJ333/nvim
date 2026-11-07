@@ -1,77 +1,168 @@
 -- ============================================================================
 -- Keybindings
 -- ============================================================================
--- Central home for every keybinding in this config:
+-- Central home for every keybinding in this config. Every binding is written
+-- as a lazy.nvim-style key spec, so they all look the same:
 --
---   * M.setup()                  editor + LSP maps, applied once from init.lua
+--   { lhs, rhs, mode = "n", desc = "...", <any other vim.keymap.set opt> }
+--
+-- (`mode` defaults to "n".) Where they get applied:
+--
+--   * M.setup()                  general + LSP maps, applied once from init.lua
+--   * M.gitsigns_attach(bufnr)   buffer-local, passed as gitsigns' on_attach
+--   * M.vimtex_fragment_toggle() buffer-local, wired up from
+--                                lua/plugins/vimtex.lua
 --   * M.plugins.<name>           lazy.nvim `keys` specs, referenced from the
 --                                matching file in lua/plugins/ (so those plugins
 --                                stay lazy-loaded on their keys)
---   * M.vimtex_fragment_toggle() buffer-local map, wired up from
---                                lua/plugins/vimtex.lua
 
 local M = {}
 
--- Editor and LSP maps. Called once from init.lua (after mapleader is set).
-function M.setup()
-  local map = vim.keymap.set
-  local noremap_silent = { noremap = true, silent = true }
+-- Apply a list of key specs. `defaults` is merged into every spec's opts
+-- (e.g. { buffer = bufnr }).
+local function apply(specs, defaults)
+  for _, spec in ipairs(specs) do
+    local opts = vim.deepcopy(defaults or {})
+    local mode = "n"
+    for k, v in pairs(spec) do
+      if k == "mode" then
+        mode = v
+      elseif type(k) ~= "number" then
+        opts[k] = v
+      end
+    end
+    vim.keymap.set(mode, spec[1], spec[2], opts)
+  end
+end
 
-  -- --- General ------------------------------------------------------------
+-- --- General ----------------------------------------------------------------
+local general = {
   -- yank to the system clipboard
-  map({ "n", "x" }, "y", '"+y', noremap_silent)
-  map("n", "Y", '"+Y', noremap_silent)
+  { "y", '"+y', mode = { "n", "x" }, silent = true, desc = "Yank to system clipboard" },
+  { "Y", '"+Y', silent = true, desc = "Yank line to system clipboard" },
 
+  -- terminal
+  { "<F4>", ":sp term://", desc = "Open terminal split" },
+  { "<C-q>", "<C-\\><C-n>", mode = "t", desc = "Leave terminal mode" },
+
+  -- move between splits
+  { "<C-h>", "<C-w>h", desc = "Window left" },
+  { "<C-j>", "<C-w>j", desc = "Window down" },
+  { "<C-k>", "<C-w>k", desc = "Window up" },
+  { "<C-l>", "<C-w>l", desc = "Window right" },
+  -- resize splits
+  { "<C-A-h>", "<C-w><", desc = "Narrower window" },
+  { "<C-A-j>", "<C-w>-", desc = "Shorter window" },
+  { "<C-A-k>", "<C-w>+", desc = "Taller window" },
+  { "<C-A-l>", "<C-w>>", desc = "Wider window" },
+
+  -- oil
+  { "-", "<CMD>Oil<CR>", desc = "Open parent directory" },
+}
+
+-- --- LSP (buffer-local, on LspAttach) ---------------------------------------
+local lsp = {
+  -- navigation
+  { "gd", vim.lsp.buf.definition, desc = "Go to definition" },
+  { "gD", vim.lsp.buf.declaration, desc = "Go to declaration" },
+  { "gr", vim.lsp.buf.references, desc = "List references" },
+  { "gi", vim.lsp.buf.implementation, desc = "Go to implementation" },
+  { "go", vim.lsp.buf.type_definition, desc = "Go to type definition" },
+
+  -- actions
+  { "K", vim.lsp.buf.hover, desc = "Hover docs" },
+  { "gs", vim.lsp.buf.signature_help, desc = "Signature help" },
+  { "<leader>rn", vim.lsp.buf.rename, desc = "Rename symbol" },
+  { "<leader>ca", vim.lsp.buf.code_action, desc = "Code action" },
+  { "<leader>f", function() vim.lsp.buf.format({ async = true }) end, desc = "Format file" },
+
+  -- diagnostics
+  { "ge", vim.diagnostic.open_float, desc = "Show diagnostic in float" },
+  { "<leader>e", vim.diagnostic.setloclist, desc = "Diagnostics to loclist" },
+}
+
+-- --- Gitsigns (buffer-local, via on_attach) ---------------------------------
+-- gs("fn", args...) -> a function that calls require("gitsigns").fn(args...)
+local function gs(name, ...)
+  local args = { ... }
+  return function() require("gitsigns")[name](unpack(args)) end
+end
+
+-- In diff mode keep Vim's own ]c / [c; otherwise jump between hunks.
+local function hunk_nav(key, direction)
+  return function()
+    if vim.wo.diff then
+      vim.cmd.normal({ key, bang = true })
+    else
+      require("gitsigns").nav_hunk(direction)
+    end
+  end
+end
+
+local function visual_range() return { vim.fn.line("."), vim.fn.line("v") } end
+
+local gitsigns = {
+  -- navigation
+  { "]c", hunk_nav("]c", "next"), desc = "Next hunk" },
+  { "[c", hunk_nav("[c", "prev"), desc = "Previous hunk" },
+
+  -- actions
+  { "<leader>hs", gs("stage_hunk"), desc = "Stage hunk" },
+  { "<leader>hr", gs("reset_hunk"), desc = "Reset hunk" },
+  { "<leader>hs", function() require("gitsigns").stage_hunk(visual_range()) end, mode = "v", desc = "Stage selected lines" },
+  { "<leader>hr", function() require("gitsigns").reset_hunk(visual_range()) end, mode = "v", desc = "Reset selected lines" },
+  { "<leader>hS", gs("stage_buffer"), desc = "Stage buffer" },
+  { "<leader>hR", gs("reset_buffer"), desc = "Reset buffer" },
+  { "<leader>hp", gs("preview_hunk"), desc = "Preview hunk" },
+  { "<leader>hi", gs("preview_hunk_inline"), desc = "Preview hunk inline" },
+  { "<leader>hb", gs("blame_line", { full = true }), desc = "Blame line" },
+  { "<leader>hd", gs("diffthis"), desc = "Diff against index" },
+  { "<leader>hD", gs("diffthis", "~"), desc = "Diff against last commit" },
+  { "<leader>hQ", gs("setqflist", "all"), desc = "All repo hunks to quickfix" },
+  { "<leader>hq", gs("setqflist"), desc = "Buffer hunks to quickfix" },
+
+  -- toggles
+  { "<leader>tb", gs("toggle_current_line_blame"), desc = "Toggle line blame" },
+  { "<leader>tw", gs("toggle_word_diff"), desc = "Toggle word diff" },
+
+  -- text object
+  { "ih", gs("select_hunk"), mode = { "o", "x" }, desc = "Select hunk" },
+}
+
+-- ============================================================================
+-- Entry points
+-- ============================================================================
+
+-- General and LSP maps. Called once from init.lua (after mapleader is set).
+function M.setup()
   -- :W behaves like :w
   vim.cmd([[cabbrev W w]])
 
-  -- --- Terminal -----------------------------------------------------------
-  map("n", "<F4>", ":sp term://")
-  map("t", "<C-q>", "<C-\\><C-n>")
+  apply(general)
 
-  -- --- Windows ------------------------------------------------------------
-  -- move between splits
-  map("n", "<C-h>", "<C-w>h")
-  map("n", "<C-j>", "<C-w>j")
-  map("n", "<C-k>", "<C-w>k")
-  map("n", "<C-l>", "<C-w>l")
-  -- resize splits
-  map("n", "<C-A-h>", "<C-w><")
-  map("n", "<C-A-j>", "<C-w>-")
-  map("n", "<C-A-k>", "<C-w>+")
-  map("n", "<C-A-l>", "<C-w>>")
-
-  -- --- Oil ----------------------------------------------------------------
-  map("n", "-", "<CMD>Oil<CR>", { desc = "Open parent directory" })
-
-  -- --- LSP (on attach) ----------------------------------------------------
   vim.api.nvim_create_autocmd("LspAttach", {
     group = vim.api.nvim_create_augroup("UserLspConfig", {}),
     callback = function(args)
-      local opts = { buffer = args.buf, silent = true }
-
-      -- navigation
-      map("n", "gd", vim.lsp.buf.definition, opts)
-      map("n", "gD", vim.lsp.buf.declaration, opts)
-      map("n", "gr", vim.lsp.buf.references, opts)
-      map("n", "gi", vim.lsp.buf.implementation, opts)
-      map("n", "go", vim.lsp.buf.type_definition, opts) -- type of the variable under the cursor
-
-      -- actions
-      map("n", "K", vim.lsp.buf.hover, opts)
-      map("n", "gs", vim.lsp.buf.signature_help, opts) -- params for the function being typed
-      map("n", "<leader>rn", vim.lsp.buf.rename, opts)
-      map("n", "<leader>ca", vim.lsp.buf.code_action, opts)
-      map("n", "<leader>f", function() vim.lsp.buf.format({ async = true }) end, opts) -- format the file
-
-      -- diagnostics
-      map("n", "ge", vim.diagnostic.open_float, opts) -- full error message in a float
-      map("n", "<leader>e", vim.diagnostic.setloclist, opts) -- all errors in a loclist
+      apply(lsp, { buffer = args.buf, silent = true })
     end,
   })
 end
 
+-- Gitsigns on_attach. Use it as `on_attach = require("keybinds").gitsigns_attach`.
+function M.gitsigns_attach(bufnr)
+  apply(gitsigns, { buffer = bufnr })
+end
+
+-- vimtex fragment-preview toggle. Buffer-local, so it is set from the FileType
+-- autocmd in lua/plugins/vimtex.lua; `action` carries the toggle behavior.
+function M.vimtex_fragment_toggle(buf, action)
+  apply({
+    { "<localleader>lm", action, silent = true, desc = "Toggle fragment preview text/xournal++ mode" },
+  }, { buffer = buf })
+end
+
 -- Plugin lazy-load `keys` specs, referenced from lua/plugins/<name>.lua.
+-- Same spec format as above; lazy.nvim applies these itself.
 M.plugins = {
   telescope = {
     { "<leader>sf", function() require("telescope.builtin").find_files() end, desc = "Search Files" },
@@ -92,12 +183,5 @@ M.plugins = {
     { "<Leader>l",     "<Cmd>MultipleCursorsLock<CR>",             mode = { "n", "x" },      desc = "Lock virtual cursors" },
   },
 }
-
--- vimtex fragment-preview toggle. Buffer-local, so it is set from the FileType
--- autocmd in lua/plugins/vimtex.lua; `action` carries the toggle behavior.
-function M.vimtex_fragment_toggle(buf, action)
-  vim.keymap.set("n", "<localleader>lm", action,
-    { buffer = buf, silent = true, desc = "toggle fragment preview text/xournal++ mode" })
-end
 
 return M
